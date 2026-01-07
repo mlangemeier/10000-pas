@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi 10 000 Pas + Graphique</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    /* Header & Titre */
+    h1 { 
+      color: #166534; 
+      margin-bottom: 1.5rem;
+      font-size: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* Bouton Sauvegarde */
+    .save-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 999px;
+      border: 1px solid #16a34a;
+      background: #22c55e;
+      color: white;
+      font-size: 0.9rem;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      transition: background 0.15s, transform 0.05s;
+    }
+    .save-button:hover { background: #16a34a; }
+    .save-button:active { transform: translateY(1px); }
+    .save-status { margin-left: 0.5rem; font-size: 0.8rem; color: #16a34a; }
+
+    /* Zone Statistiques (Badges) */
+    .stats-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      background: white;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      font-size: 0.95rem;
+      align-items: center;
+    }
+    .stats-label { color: #6b7280; }
+    .stats-value { color: #16a34a; font-weight: 600; margin-left: 0.25rem; margin-right: 0.75rem; }
+    .stats-objectif { margin-left: auto; font-weight: 600; color: #166534; }
+
+    /* Zone Graphique */
+    .chart-container {
+      background: white;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      margin-bottom: 2rem;
+      width: 100%;
+      height: 350px; /* Grande taille */
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Tableau */
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    th { 
+      background: #166534; 
+      color: white; 
+      padding: 0.75rem 0.5rem;
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+    td { 
+      padding: 0.5rem; 
+      text-align: center; 
+      border-bottom: 1px solid #e5e7eb;
+    }
+    tr:hover { background: #f0fdf4; }
+    
+    /* Couleurs conditionnelles */
+    .negative { color: #dc2626; font-weight: bold; }
+    .positive { color: #16a34a; font-weight: bold; }
+
+    /* Bouton toggle (masquer lignes) */
+    .toggle-rows-button {
+      background: #22c55e;
+      border: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 6px;
+    }
+    .toggle-rows-icon {
+      width: 0; height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid #ffffff;
+    }
+    
+    /* Style des inputs/selects */
+    select.serie-j {
+      padding: 4px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #f9f9f9;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      🚶 Suivi 10 000 Pas
+      <button id="btn-sauvegarde" class="save-button" type="button" title="Sauvegarder">
+        <span>💾</span> <span>Sauvegarde</span>
+      </button>
+      <span id="save-status" class="save-status"></span>
+    </h1>
+    
+    <div class="stats-row">
+      <span class="stats-label">Jours à 0 :</span> <span class="stats-value" id="jours-0">0</span>
+      <span class="stats-label">Jours à 1 :</span> <span class="stats-value" id="jours-1">0</span>
+      <span class="stats-label">Jours à 2+ :</span> <span class="stats-value" id="jours-2plus">0</span>
+      <span class="stats-label">Conséc. 0 :</span> <span class="stats-value" id="serie-0">0</span>
+      <span class="stats-label">Conséc. Fait :</span> <span class="stats-value" id="serie-fait">0</span>
+      <span class="stats-objectif">(Objectif : 8)</span>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="myChart"></canvas>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Jour</th>
+          <th>Série J.</th>
+          <th>Effectifs</th>
+          <th>% Obj</th>
+          <th>% Cumulé</th>
+          <th>Prédictions</th>
+          <th>% J</th>
+          <th>
+            Manque
+            <button id="toggle-rows" class="toggle-rows-button" title="Afficher / masquer">
+              <span class="toggle-rows-icon"></span>
+            </button>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        </tbody>
+    </table>
+  </div>
+
+  <script>
+    /* ================= CONFIGURATION ================= */
+    const OBJECTIF = 8;
+    const JOURS_MAX = 30;
+    const STORAGE_KEY = 'suivi_10000pas_graph_v1';
+    
+    // Initialisation HTML des 30 jours
+    const tbody = document.querySelector('tbody');
+    let htmlContent = '';
+    for(let i=1; i<=JOURS_MAX; i++) {
+        htmlContent += `
+        <tr class="jour-row">
+          <td>${i}</td>
+          <td>
+            <select class="serie-j" data-jour="${i}">
+              <option value="0" selected>0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </td>
+          <td class="effectif" data-jour="${i}">0</td>
+          <td class="pct-obj" data-jour="${i}">0%</td>
+          <td class="pct-cum" data-jour="${i}">0%</td>
+          <td class="virtuel" data-jour="${i}">0</td>
+          <td class="pct-j" data-jour="${i}">0</td>
+          <td class="manque" data-jour="${i}">0</td>
+        </tr>`;
+    }
+    tbody.innerHTML = htmlContent;
+
+    /* ================= LOGIQUE METIER ================= */
+    
+    function lireSeriesJ() {
+      const series = {};
+      document.querySelectorAll('select.serie-j').forEach(sel => {
+        series[parseInt(sel.dataset.jour)] = parseInt(sel.value) || 0;
+      });
+      return series;
+    }
+
+    function appliquerSeriesJ(series) {
+      document.querySelectorAll('select.serie-j').forEach(sel => {
+        const j = parseInt(sel.dataset.jour);
+        if (series[j] !== undefined) sel.value = series[j];
+      });
+    }
+
+    // Fonction principale de calcul + Préparation données Graphique
+    function recalculerToutesValeurs(series) {
+      let cumul = 0;
+      let dataForGraph = []; // Pour stocker [jour, effectif]
+
+      for (let jour = 1; jour <= JOURS_MAX; jour++) {
+        const v = series[jour] ?? 0;
+        cumul += v;
+        dataForGraph.push(cumul); // Ajout au tableau de données graphique
+
+        // Mise à jour DOM
+        document.querySelector(`.effectif[data-jour="${jour}"]`).textContent = cumul;
+        
+        // % J (Objectif théorique linéaire)
+        const valJ = Math.round((OBJECTIF / JOURS_MAX) * jour);
+        document.querySelector(`.pct-j[data-jour="${jour}"]`).textContent = valJ;
+
+        // % Obj
+        const tdPctObj = document.querySelector(`.pct-obj[data-jour="${jour}"]`);
+        if(valJ > 0) tdPctObj.textContent = Math.round((cumul / valJ) * 100) + '%';
+        else tdPctObj.textContent = '0%';
+
+        // % Cumulé
+        const pctCum = OBJECTIF > 0 ? Math.round((cumul / OBJECTIF) * 100) : 0;
+        document.querySelector(`.pct-cum[data-jour="${jour}"]`).textContent = pctCum + '%';
+
+        // Virtuel (Projection)
+        const virt = jour > 0 ? Math.round((JOURS_MAX / jour) * cumul) : 0;
+        document.querySelector(`.virtuel[data-jour="${jour}"]`).textContent = virt;
+
+        // Manque (Difference)
+        const tdManque = document.querySelector(`.manque[data-jour="${jour}"]`);
+        const manque = valJ - cumul; // Note: Inversé selon logique précédente (ValJ - Effectif)
+        // Mais dans votre code original: Manque = Effectif - ValJ ? 
+        // Votre exemple montrait -1 quand on est en retard. Donc Effectif (1) - ValJ (2) = -1. 
+        // Formule : Effectif - ValJ
+        const diff = cumul - valJ;
+        tdManque.textContent = diff;
+        tdManque.className = 'manque';
+        if(diff < 0) tdManque.classList.add('negative'); 
+        else if(diff >= 0) tdManque.classList.add('positive');
+      }
+      return dataForGraph;
+    }
+
+    function mettreAJourStats() {
+      const series = lireSeriesJ();
+      const graphData = recalculerToutesValeurs(series);
+      
+      // Stats en haut
+      let days0=0, days1=0, days2p=0;
+      let maxS0=0, currS0=0;
+      let maxSf=0, currSf=0;
+
+      for(let j=1; j<=JOURS_MAX; j++) {
+        const v = series[j] ?? 0;
+        if(v === 0) {
+          days0++; currS0++; maxS0 = Math.max(maxS0, currS0);
+          currSf=0;
+        } else {
+          currS0=0; currSf++; maxSf = Math.max(maxSf, currSf);
+          if(v === 1) days1++;
+          else days2p++;
+        }
+      }
+      document.getElementById('jours-0').textContent = days0;
+      document.getElementById('jours-1').textContent = days1;
+      document.getElementById('jours-2plus').textContent = days2p;
+      document.getElementById('serie-0').textContent = maxS0;
+      document.getElementById('serie-fait').textContent = maxSf;
+
+      // Dessiner le graphique
+      drawChart(graphData);
+    }
+
+    /* ================= GRAPHIQUE (CANVAS) ================= */
+    const canvas = document.getElementById('myChart');
+    const ctx = canvas.getContext('2d');
+    
+    // Ajuster la résolution du canvas pour éviter le flou
+    function resizeCanvas() {
+      const parent = canvas.parentElement;
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+      mettreAJourStats(); // Redessiner
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function drawChart(data) {
+      // Nettoyage
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const padding = 40;
+      const width = canvas.width - (padding * 2);
+      const height = canvas.height - (padding * 2);
+      
+      // Echelles
+      const maxVal = Math.max(OBJECTIF, ...data, 20); // Echelle Y dynamique (min 20)
+      const stepX = width / (JOURS_MAX - 1);
+      
+      // 1. DESSINER LA GRILLE
+      ctx.beginPath();
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      
+      // Lignes horizontales (5 lignes)
+      for(let i=0; i<=5; i++) {
+        const y = padding + height - (i * (height/5));
+        ctx.moveTo(padding, y);
+        ctx.lineTo(padding + width, y);
+        // Texte axe Y
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '10px Arial';
+        ctx.fillText(Math.round(i * (maxVal/5)), 5, y + 3);
+      }
+      ctx.stroke();
+
+      // 2. LIGNE IDEALE (Pointillés gris)
+      ctx.beginPath();
+      ctx.strokeStyle = '#9ca3af';
+      ctx.setLineDash([5, 5]);
+      ctx.moveTo(padding, padding + height); // 0,0
+      // Point final (Jour 30, Objectif total theorique si calculé, ou juste trajectoire moyenne)
+      // On va tracer la ligne de 0 à maxVal (si maxVal correspond à la fin).
+      // Simplification : Ligne droite de (Jour 1, moyenne) à (Jour 30, Objectif)
+      // Ici on trace simplement la ligne de 0 à la fin pour guider l'oeil
+      const yObj = padding + height - (OBJECTIF / maxVal * height);
+      ctx.lineTo(padding + width, yObj);
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset
+
+      // 3. COURBE EFFECTIFS (Verte)
+      ctx.beginPath();
+      ctx.strokeStyle = '#16a34a'; // Vert
+      ctx.lineWidth = 3;
+      
+      data.forEach((val, index) => {
+        const x = padding + (index * stepX);
+        const y = padding + height - (val / maxVal * height);
+        if(index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // 4. POINTS ET TEXTE X
+      data.forEach((val, index) => {
+        const x = padding + (index * stepX);
+        const y = padding + height - (val / maxVal * height);
+        
+        // Point
+        ctx.beginPath();
+        ctx.fillStyle = '#fff';
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke(); // Bordure verte héritée
+
+        // Texte Axe X (Jours), afficher 1 sur 2 pour lisibilité
+        if((index + 1) % 2 !== 0 || index === JOURS_MAX-1) {
+            ctx.fillStyle = '#6b7280';
+            ctx.textAlign = 'center';
+            ctx.fillText(index + 1, x, canvas.height - 10);
+        }
+      });
+    }
+
+    /* ================= INITIALISATION ================= */
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Charger sauvegarde
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) appliquerSeriesJ(JSON.parse(saved));
+      } catch(e) {}
+
+      // 2. Initialiser Canvas taille
+      canvas.width = document.querySelector('.chart-container').clientWidth;
+      canvas.height = document.querySelector('.chart-container').clientHeight;
+
+      // 3. Calculer
+      mettreAJourStats();
+
+      // 4. Ecouteurs
+      document.querySelectorAll('select.serie-j').forEach(sel => {
+        sel.addEventListener('change', () => {
+          mettreAJourStats();
+        });
+      });
+
+      document.getElementById('btn-sauvegarde').addEventListener('click', () => {
+        const series = lireSeriesJ();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(series));
+        const span = document.getElementById('save-status');
+        span.textContent = 'Sauvegardé !';
+        setTimeout(() => span.textContent='', 2000);
+      });
+
+      document.getElementById('toggle-rows').addEventListener('click', () => {
+        document.querySelectorAll('tbody tr').forEach(r => {
+          r.style.display = r.style.display === 'none' ? '' : 'none';
+        });
+      });
+    });
+  </script>
+</body>
+</html>
