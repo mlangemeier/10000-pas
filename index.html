@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi 10 000 Pas - Design Épuré</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    h1 { 
+      color: #166534; 
+      margin-bottom: 1rem;
+      font-size: 2rem;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    /* STYLE ÉPURÉ POUR LA DATE */
+    .date-ouverture {
+      font-size: 1.1rem;
+      color: #22c55e; /* Vert vif */
+      font-weight: 600;
+      margin-bottom: 1rem;
+      background: #ffffff; /* Fond blanc pur */
+      display: inline-block;
+      padding: 0.6rem 1.2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05); /* Ombre très légère */
+      border: 1px solid #f0fdf4; /* Bordure très fine presque invisible */
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      transition: background 0.15s, transform 0.05s;
+      color: white;
+      border: none;
+    }
+    .btn-action:active { transform: translateY(1px); }
+
+    .save-button { background: #22c55e; border: 1px solid #16a34a; }
+    .export-button { background: #3b82f6; border: 1px solid #2563eb; }
+    .import-button { background: #8b5cf6; border: 1px solid #7c3aed; }
+    .reset-button { background: #f97373; border: 1px solid #9ca3af; }
+
+    .save-status { margin-left: 0.5rem; font-size: 0.8rem; color: #16a34a; font-weight: bold; }
+
+    .stats-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      background: white;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      font-size: 0.95rem;
+      align-items: center;
+    }
+    .stats-label { color: #6b7280; }
+    .stats-value { color: #16a34a; font-weight: 600; margin-right: 0.75rem; }
+    .stats-highlight { color: #1e40af; font-weight: 800; margin-right: 1.2rem; font-size: 1.1rem; }
+    .stats-objectif { margin-left: auto; font-weight: 600; color: #166534; }
+
+    .chart-container {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      margin-bottom: 2rem;
+      width: 100%;
+      height: 400px;
+      position: relative;
+    }
+    canvas { width: 100%; height: 100%; }
+
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    th { background: #166534; color: white; padding: 0.75rem 0.5rem; font-weight: 500; font-size: 0.875rem; }
+    td { padding: 0.5rem; text-align: center; border-bottom: 1px solid #e5e7eb; }
+    tr:hover { background: #f0fdf4; }
+    .negative { color: #dc2626; font-weight: bold; }
+    .positive { color: #16a34a; font-weight: bold; }
+
+    .toggle-rows-button {
+      background: #22c55e; border: none; width: 24px; height: 24px; border-radius: 4px;
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin-left: 6px;
+    }
+    .toggle-rows-icon { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #ffffff; }
+    select.serie-j { padding: 4px; border-radius: 4px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      🚶 Suivi 10 000 Pas
+      <button id="btn-sauvegarde" class="btn-action save-button"><span>💾</span> <span>Sauvegarde</span></button>
+      <button id="btn-export" class="btn-action export-button"><span>📂</span> <span>Export file</span></button>
+      <input type="file" id="file-input" accept=".txt" style="display: none;" />
+      <button id="btn-import" class="btn-action import-button"><span>📥</span> <span>Import file</span></button>
+      <button id="btn-reset" class="btn-action reset-button"><span>♻️</span> <span>Reset</span></button>
+      <span id="save-status" class="save-status"></span>
+    </h1>
+
+    <div id="horodatage" class="date-ouverture">Dernière sauvegarde : Aucune</div>
+    
+    <div class="stats-row">
+      <span class="stats-label">Nombre de pas :</span> <span class="stats-highlight" id="total-pas">0</span>
+      <span class="stats-label">Jours à 0 :</span> <span class="stats-value" id="jours-0">0</span>
+      <span class="stats-label">Jours à 1 :</span> <span class="stats-value" id="jours-1">0</span>
+      <span class="stats-label">Jours à 2+ :</span> <span class="stats-value" id="jours-2plus">0</span>
+      <span class="stats-label">Conséc. 0 :</span> <span class="stats-value" id="serie-0">0</span>
+      <span class="stats-label">Conséc. Fait :</span> <span class="stats-value" id="serie-fait">0</span>
+      <span class="stats-objectif">(Objectif : 8)</span>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="myChart"></canvas>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Jour</th>
+          <th>Série J.</th>
+          <th>Effectifs</th>
+          <th>% Obj</th>
+          <th>% Cumulé</th>
+          <th>Prédictions</th>
+          <th>% J</th>
+          <th>
+            Manque
+            <button id="toggle-rows" class="toggle-rows-button"><span class="toggle-rows-icon"></span></button>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const OBJECTIF = 8;
+    const JOURS_MAX = 30;
+    const STORAGE_KEY = 'suivi_10000pas_graph_v1';
+    const DATE_KEY = 'suivi_10000pas_date_v1';
+    
+    function getFormatDateHeure() {
+      const maintenant = new Date();
+      const optionsDate = { weekday: 'long', day: 'numeric', month: 'long' };
+      let dateString = maintenant.toLocaleDateString('fr-FR', optionsDate);
+      dateString = dateString.charAt(0).toUpperCase() + dateString.slice(1);
+      const heures = maintenant.getHours();
+      const minutes = maintenant.getMinutes().toString().padStart(2, '0');
+      return `${dateString} à ${heures}h${minutes}`;
+    }
+
+    const tbody = document.getElementById('table-body');
+    for(let i=1; i<=JOURS_MAX; i++) {
+        tbody.innerHTML += `
+        <tr>
+          <td>${i}</td>
+          <td>
+            <select class="serie-j" data-jour="${i}">
+              <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            </select>
+          </td>
+          <td class="effectif" data-jour="${i}">0</td>
+          <td class="pct-obj" data-jour="${i}">0%</td>
+          <td class="pct-cum" data-jour="${i}">0%</td>
+          <td class="virtuel" data-jour="${i}">0</td>
+          <td class="pct-j" data-jour="${i}">0</td>
+          <td class="manque" data-jour="${i}">0</td>
+        </tr>`;
+    }
+
+    function lireSeriesJ() {
+      const series = {};
+      document.querySelectorAll('select.serie-j').forEach(sel => {
+        series[parseInt(sel.dataset.jour)] = parseInt(sel.value) || 0;
+      });
+      return series;
+    }
+
+    function appliquerSeriesJ(series) {
+      document.querySelectorAll('select.serie-j').forEach(sel => {
+        const j = parseInt(sel.dataset.jour);
+        if (series[j] !== undefined) sel.value = series[j];
+      });
+    }
+
+    function mettreAJourStats() {
+      const series = lireSeriesJ();
+      let cumul = 0;
+      let dataForGraph = [];
+      let days0=0, days1=0, days2p=0;
+      let maxS0=0, currS0=0, maxSf=0, currSf=0;
+
+      for (let jour = 1; jour <= JOURS_MAX; jour++) {
+        const v = series[jour] ?? 0;
+        cumul += v;
+        dataForGraph.push(cumul);
+
+        document.querySelector(`.effectif[data-jour="${jour}"]`).textContent = cumul;
+        const valJ = Math.round((OBJECTIF / JOURS_MAX) * jour);
+        document.querySelector(`.pct-j[data-jour="${jour}"]`).textContent = valJ;
+        document.querySelector(`.pct-obj[data-jour="${jour}"]`).textContent = valJ > 0 ? Math.round((cumul / valJ) * 100) + '%' : '0%';
+        document.querySelector(`.pct-cum[data-jour="${jour}"]`).textContent = Math.round((cumul / OBJECTIF) * 100) + '%';
+        document.querySelector(`.virtuel[data-jour="${jour}"]`).textContent = jour > 0 ? Math.round((JOURS_MAX / jour) * cumul) : 0;
+        
+        const tdManque = document.querySelector(`.manque[data-jour="${jour}"]`);
+        const diff = cumul - valJ;
+        tdManque.textContent = diff;
+        tdManque.className = 'manque ' + (diff < 0 ? 'negative' : 'positive');
+
+        if(v === 0) {
+          days0++; currS0++; maxS0 = Math.max(maxS0, currS0); currSf=0;
+        } else {
+          currS0=0; currSf++; maxSf = Math.max(maxSf, currSf);
+          if(v === 1) days1++; else days2p++;
+        }
+      }
+      document.getElementById('total-pas').textContent = cumul;
+      document.getElementById('jours-0').textContent = days0;
+      document.getElementById('jours-1').textContent = days1;
+      document.getElementById('jours-2plus').textContent = days2p;
+      document.getElementById('serie-0').textContent = maxS0;
+      document.getElementById('serie-fait').textContent = maxSf;
+      drawChart(dataForGraph);
+    }
+
+    const canvas = document.getElementById('myChart');
+    const ctx = canvas.getContext('2d');
+    
+    function drawChart(data) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const padding = 40;
+      const width = canvas.width - (padding * 2);
+      const height = canvas.height - (padding * 2);
+      const maxVal = 12; 
+      const stepX = width / (JOURS_MAX - 1);
+      
+      ctx.beginPath();
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      const stepsY = 6;
+      for(let i=0; i<=stepsY; i++) {
+        const valY = Math.round(i * (maxVal / stepsY));
+        const y = padding + height - (i * (height / stepsY));
+        ctx.moveTo(padding, y);
+        ctx.lineTo(padding + width, y);
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '11px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText(valY, padding - 10, y + 4);
+      }
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+      ctx.moveTo(padding, padding + height);
+      const yObj = padding + height - (OBJECTIF / maxVal * height);
+      ctx.lineTo(padding + width, yObj);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#16a34a'; 
+      ctx.lineWidth = 3;
+      data.forEach((val, i) => {
+        const x = padding + (i * stepX);
+        const drawVal = Math.min(val, maxVal);
+        const y = padding + height - (drawVal / maxVal * height);
+        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      data.forEach((val, i) => {
+        const x = padding + (i * stepX);
+        const drawVal = Math.min(val, maxVal);
+        const y = padding + height - (drawVal / maxVal * height);
+        ctx.beginPath();
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#16a34a';
+        ctx.lineWidth = 2;
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#6b7280';
+        ctx.textAlign = 'center';
+        ctx.font = '10px Arial';
+        ctx.fillText(i + 1, x, padding + height + 20);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) appliquerSeriesJ(JSON.parse(saved));
+        
+        const savedDate = localStorage.getItem(DATE_KEY);
+        if (savedDate) document.getElementById('horodatage').textContent = "Dernière sauvegarde : " + savedDate;
+      } catch(e) {}
+
+      const resize = () => {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        mettreAJourStats();
+      };
+      window.addEventListener('resize', resize);
+      resize();
+
+      document.querySelectorAll('select.serie-j').forEach(sel => {
+        sel.addEventListener('change', mettreAJourStats);
+      });
+
+      document.getElementById('btn-sauvegarde').addEventListener('click', () => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(lireSeriesJ()));
+        const nouvelleDate = getFormatDateHeure();
+        localStorage.setItem(DATE_KEY, nouvelleDate);
+        document.getElementById('horodatage').textContent = "Dernière sauvegarde : " + nouvelleDate;
+        
+        const s = document.getElementById('save-status');
+        s.textContent = 'Sauvegardé !'; setTimeout(() => s.textContent='', 2000);
+      });
+
+      document.getElementById('btn-export').addEventListener('click', () => {
+        const series = lireSeriesJ();
+        let content = "Suivi 10 000 Pas - Données Série J.\n\n";
+        for (let i = 1; i <= JOURS_MAX; i++) content += `Jour ${i} : ${series[i] || 0}\n`;
+        const blob = new Blob([content], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'suivi10000pas.txt';
+        a.click();
+      });
+
+      document.getElementById('btn-import').addEventListener('click', () => document.getElementById('file-input').click());
+      document.getElementById('file-input').addEventListener('change', (e) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const lines = event.target.result.split('\n');
+          const newData = {};
+          lines.forEach(l => {
+            const m = l.match(/Jour\s+(\d+)\s+:\s+(\d+)/);
+            if(m) newData[m[1]] = m[2];
+          });
+          appliquerSeriesJ(newData); mettreAJourStats();
+          document.getElementById('btn-sauvegarde').click();
+        };
+        reader.readAsText(e.target.files[0]);
+      });
+
+      document.getElementById('btn-reset').addEventListener('click', () => {
+        if(confirm("Réinitialiser toutes les données ?")) {
+          document.querySelectorAll('select.serie-j').forEach(s => s.value = '0');
+          localStorage.removeItem(STORAGE_KEY); 
+          localStorage.removeItem(DATE_KEY);
+          document.getElementById('horodatage').textContent = "Dernière sauvegarde : Aucune";
+          mettreAJourStats();
+        }
+      });
+
+      document.getElementById('toggle-rows').addEventListener('click', () => {
+        const rows = document.querySelectorAll('tbody tr');
+        const isHidden = rows[0].style.display === 'none';
+        rows.forEach(r => r.style.display = isHidden ? '' : 'none');
+      });
+    });
+  </script>
+</body>
+</html>
